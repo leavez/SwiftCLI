@@ -6,6 +6,8 @@
 //  Copyright © 2017 jakeheis. All rights reserved.
 //
 
+import Foundation
+
 public protocol Option: class, CustomStringConvertible {
     var names: [String] { get }
     var shortDescription: String { get }
@@ -31,12 +33,44 @@ extension Option {
         if names.count == 1 && names[0].hasPrefix("--") { // no one letter shortcut; indent
             id = "    " + id
         }
+        var size = winsize()
+        _ = ioctl(STDOUT_FILENO, TIOCGWINSZ, &size)
         let spacing = String(repeating: " ", count: padding - id.count)
         let descriptionNewlineSpacing = String(repeating: " ", count: padding)
-        let description = shortDescription.replacingOccurrences(of: "\n", with: "\n\(descriptionNewlineSpacing)")
+        let description = hardLimit(text: shortDescription, toWidth: Int(size.ws_col) - padding - 1, minWidth: 40)
+            .replacingOccurrences(of: "\n", with: "\n\(descriptionNewlineSpacing) ")
+        
         return "\(id)\(spacing)\(description)"
     }
     
+    // private
+    
+    private func hardLimit(text: String, toWidth: Int, minWidth: Int) -> String {
+        if toWidth < minWidth {
+            return text
+        }
+        var chars: [String.Element] = []
+        var currentCount = 0
+        var lastSpacePosition = 0
+        for c in text {
+            chars.append(c)
+            currentCount += 1
+            
+            if currentCount >= toWidth {
+                currentCount = chars.count - lastSpacePosition - 1
+                chars.insert("\n", at: lastSpacePosition + 1)
+                if currentCount > toWidth {
+                    chars.append("\n")
+                    currentCount = 0
+                }
+            } else {
+                if c == " " {
+                    lastSpacePosition = chars.count - 1
+                }
+            }
+        }
+        return String(chars)
+    }
 }
 
 // MARK: - Flags
